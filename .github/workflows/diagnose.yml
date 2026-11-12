@@ -19,6 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: user-data
+
+    env:
+      PROXY_ADDRESS: ${{ vars.PROXY_ADDRESS }}
+      MESSAGE_TEMPLATE: ${{ vars.MESSAGE_TEMPLATE }}
+      HITOKOTO_TYPES: ${{ vars.HITOKOTO_TYPES }}
+      MATCH_MODE: ${{ vars.MATCH_MODE }}
+      BROWSER_TIMEOUT: ${{ vars.BROWSER_TIMEOUT }}
+      FRIEND_LIST_WAIT_TIME: ${{ vars.FRIEND_LIST_WAIT_TIME }}
+      TASK_RETRY_TIMES: ${{ vars.TASK_RETRY_TIMES }}
+      LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+      TASKS: ${{ vars.TASKS }}
+      COOKIES_46028533140: ${{ secrets.COOKIES_46028533140 }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -31,11 +43,6 @@ jobs:
           pip install playwright
       - name: Ensure browsers are installed
         run: playwright install chromium --with-deps --only-shell
-      - name: Export env for diagnose
-        env:
-          VARS_JSON: ${{ toJson(vars) }}
-          SECRETS_JSON: ${{ toJson(secrets) }}
-        run: python utils/export_github_env.py
       - name: Run diagnose (read-only)
         run: |
           set -e
