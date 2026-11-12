@@ -1,14 +1,18 @@
-# 本文件改自上游 schedule.yml，只做了一处功能性改动：
+# 本文件改自上游 schedule.yml，做了三处必要改动：
 #
-# 上游用 toJson 把 vars 和 secrets 各自聚合成一整块 JSON，交给
-# utils/export_github_env.py 落盘成 .env 与 GITHUB_ENV。
-# 其中「把整个 secrets 上下文聚合进一个变量」这一步，是 GitHub 官方
-# 点名的密钥外泄特征写法 —— 非 fork 仓库不做这项扫描，但 fork 出来的
-# 仓库会被判定为 workflow file may be malicious，运行结论固定为
-# action_required，也就是永远不执行、还必须人工点批准。
+# 1) 去掉 toJson 聚合所有 secrets 的写法，改为逐个显式引用。
+#    原因是「把整个 secrets 上下文聚合成一个变量」属于 GitHub 点名的
+#    密钥外泄特征，非 fork 仓库不扫描，fork 仓库会被判 workflow file
+#    may be malicious，结论固定 action_required，永远不执行。
+#    功能等价：main.py 直接读环境变量，本来就不需要那步导出。
 #
-# 这里改为逐个显式引用。功能完全等价：main.py 直接读环境变量，
-# 本来就不需要那步导出；顺带也免去了把全部密钥写进 .env 的副作用。
+# 2) ubuntu-latest 已滚动到 26.04，而 playwright==1.58.0 不支持该系统，
+#    安装浏览器会直接报 "Does not support chromium-headless-shell on
+#    ubuntu26.04-x64"。因此固定到 ubuntu-24.04。
+#
+# 3) utils/config.py 里 DEBUG=True，core/browser.py 因此以 headless=False
+#    启动；上游却只装 chromium-headless-shell，缺完整 chromium 会失败。
+#    这里改为安装完整 chromium，并用 xvfb 提供虚拟显示。
 name: DouYin Spark Flow Schedule Run
 
 on:
@@ -18,8 +22,8 @@ on:
 
 jobs:
   run-main:
-    timeout-minutes: 20
-    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    runs-on: ubuntu-24.04
     environment: user-data
     env:
       PROXY_ADDRESS: ${{ vars.PROXY_ADDRESS }}
@@ -50,10 +54,14 @@ jobs:
           pip install -r requirements.txt
 
       - name: Ensure browsers are installed
-        run: playwright install chromium --with-deps --only-shell
+        run: playwright install chromium --with-deps
+
+      - name: Ensure xvfb
+        run: |
+          command -v xvfb-run >/dev/null || (sudo apt-get update && sudo apt-get install -y xvfb)
 
       - name: Run DouYin Spark Flow
-        run: python main.py
+        run: xvfb-run -a python main.py
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
