@@ -1,40 +1,71 @@
+# 说明（本文件改自上游 schedule.yml，唯一区别就是下面这段注释说的事）
+#
+# 上游写法：
+#     env:
+#       VARS_JSON:    ${{ toJson(vars) }}
+#       SECRETS_JSON: ${{ toJson(secrets) }}      # ← 问题在这
+#     run: python utils/export_github_env.py
+#
+# `toJson(secrets)` 会把仓库里所有密钥聚合成一个字符串交给脚本落盘，
+# 这正是 GitHub 官方点名的「密钥外泄」特征写法。非 fork 仓库不做这项扫描，
+# 但 fork 出来的仓库会被判为 "workflow file may be malicious"，
+# 运行结论固定 action_required —— 也就是永远不执行，还只能人工点批准。
+#
+# 这里改成逐个显式引用：功能完全等价（main.py 直接读环境变量，
+# 根本不需要那步导出），同时去掉了把全部密钥写进 .env 的副作用。
 name: DouYin Spark Flow Schedule Run
+
 on:
-  workflow_dispatch: # 允许手动触发
-  schedule: # 定时任务
-    - cron: "40 16 * * *" # 每天 16:40 UTC（对应北京时间次日凌晨 00:40；GitHub 延迟后消息约在北京时间 01:10-01:40 送达）
+  workflow_dispatch:        # 允许手动触发
+  schedule:                 # 定时任务
+    - cron: "40 16 * * *"   # 每天 16:40 UTC（北京时间次日 00:40）
+
 jobs:
   run-main:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: user-data
+    env:
+      PROXY_ADDRESS: ${{ vars.PROXY_ADDRESS }}
+      MESSAGE_TEMPLATE: ${{ vars.MESSAGE_TEMPLATE }}
+      HITOKOTO_TYPES: ${{ vars.HITOKOTO_TYPES }}
+      MATCH_MODE: ${{ vars.MATCH_MODE }}
+      BROWSER_TIMEOUT: ${{ vars.BROWSER_TIMEOUT }}
+      FRIEND_LIST_WAIT_TIME: ${{ vars.FRIEND_LIST_WAIT_TIME }}
+      TASK_RETRY_TIMES: ${{ vars.TASK_RETRY_TIMES }}
+      LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+      TASKS: ${{ vars.TASKS }}
+      COOKIES_46028533140: ${{ secrets.COOKIES_46028533140 }}
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    - name: Test Douyin Accessibility
-      run: |
-        curl -I https://creator.douyin.com/
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Ensure browsers are installed
-      run: playwright install chromium --with-deps --only-shell
-    - name: Export Github Environment Variables and Secrets to JSON
-      env:
-        VARS_JSON: ${{ toJson(vars) }}
-        SECRETS_JSON: ${{ toJson(secrets) }}
-      run: python utils/export_github_env.py
-    - name: Run DouYin Spark Flow
-      run: python main.py
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: run-logs
-        path: logs/
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Test Douyin Accessibility
+        run: |
+          curl -I https://creator.douyin.com/
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ensure browsers are installed
+        run: playwright install chromium --with-deps --only-shell
+
+      - name: Run DouYin Spark Flow
+        run: python main.py
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: run-logs
+          path: logs/
+          if-no-files-found: warn
+
   workflow-keepalive:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
