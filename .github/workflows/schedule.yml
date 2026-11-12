@@ -1,18 +1,14 @@
-# 说明（本文件改自上游 schedule.yml，唯一区别就是下面这段注释说的事）
+# 本文件改自上游 schedule.yml，只做了一处功能性改动：
 #
-# 上游写法：
-#     env:
-#       VARS_JSON:    ${{ toJson(vars) }}
-#       SECRETS_JSON: ${{ toJson(secrets) }}      # ← 问题在这
-#     run: python utils/export_github_env.py
+# 上游用 toJson 把 vars 和 secrets 各自聚合成一整块 JSON，交给
+# utils/export_github_env.py 落盘成 .env 与 GITHUB_ENV。
+# 其中「把整个 secrets 上下文聚合进一个变量」这一步，是 GitHub 官方
+# 点名的密钥外泄特征写法 —— 非 fork 仓库不做这项扫描，但 fork 出来的
+# 仓库会被判定为 workflow file may be malicious，运行结论固定为
+# action_required，也就是永远不执行、还必须人工点批准。
 #
-# `toJson(secrets)` 会把仓库里所有密钥聚合成一个字符串交给脚本落盘，
-# 这正是 GitHub 官方点名的「密钥外泄」特征写法。非 fork 仓库不做这项扫描，
-# 但 fork 出来的仓库会被判为 "workflow file may be malicious"，
-# 运行结论固定 action_required —— 也就是永远不执行，还只能人工点批准。
-#
-# 这里改成逐个显式引用：功能完全等价（main.py 直接读环境变量，
-# 根本不需要那步导出），同时去掉了把全部密钥写进 .env 的副作用。
+# 这里改为逐个显式引用。功能完全等价：main.py 直接读环境变量，
+# 本来就不需要那步导出；顺带也免去了把全部密钥写进 .env 的副作用。
 name: DouYin Spark Flow Schedule Run
 
 on:
