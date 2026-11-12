@@ -425,6 +425,9 @@ def do_user_task(browser, username, cookies, targets, bypass_daily_dedup=False):
         retries=config["taskRetryTimes"],
         delay=5,
         url="https://www.douyin.com/chat",
+        # 抖音页面的 load 事件常因长连接/CDN 子资源永不触发，在境外 runner 上会一直等到超时；
+        # domcontentloaded 只等 DOM 就绪，后续由选择器等待兜住渲染。
+        wait_until="domcontentloaded",
     )
 
     time.sleep(5)  # 等待页面加载，避免误判登录态
